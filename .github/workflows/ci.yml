@@ -28,3 +28,52 @@ jobs:
         pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcb1-dev libxcursor-dev
         libxrandr-dev libxi-dev libfontconfig1-dev libfreetype-dev mesa-vulkan-drivers
         libasound2-dev
+
+  i18n-validate:
+    name: Validar Integridade i18n / TSV
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+      - name: Validar Sintaxe dos Catálogos TSV (pt-br.tsv e outros)
+        run: |
+          python3 - << 'EOF'
+          import sys
+          import glob
+          from pathlib import Path
+
+          tsv_files = glob.glob("crates/ui-egui/src/i18n/*.tsv")
+          if not tsv_files:
+              print("Erro: Nenhum arquivo .tsv encontrado em crates/ui-egui/src/i18n/")
+              sys.exit(1)
+
+          failed = False
+          for filepath in tsv_files:
+              path = Path(filepath)
+              seen_keys = set()
+              with open(path, "r", encoding="utf-8") as f:
+                  for lineno, line in enumerate(f, 1):
+                      line = line.rstrip("\r\n")
+                      if not line or line.startswith("#"):
+                          continue
+                      parts = line.split("\t")
+                      if len(parts) != 3:
+                          print(f"::error file={path},line={lineno}::Linha inválida (esperava 3 colunas separadas por TAB, encontrou {len(parts)}): {line!r}")
+                          failed = True
+                          continue
+                      ctx, src, trans = parts
+                      if not src.strip():
+                          print(f"::error file={path},line={lineno}::Termo de origem (inglês) está vazio")
+                          failed = True
+                      key = (ctx, src)
+                      if key in seen_keys:
+                          print(f"::error file={path},line={lineno}::Chave duplicada no catálogo: {key}")
+                          failed = True
+                      seen_keys.add(key)
+
+              print(f"OK: {path.name} ({len(seen_keys)} entradas validadas)")
+
+          if failed:
+              sys.exit(1)
+          print("Sucesso: Todos os catálogos TSV (incluindo pt-br.tsv) foram validados com êxito!")
+          EOF

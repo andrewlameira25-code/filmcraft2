@@ -22,6 +22,7 @@ Options:
   --graphics <mode>  start with this graphics mode and keep it: default,
                      dx12 (Windows), software (Windows, Linux);
                      `--graphics default` undoes an automatic fallback
+  --lang <code>      interface language: en, pt-br, es, ja, de, fr, etc.
   --version          print the version and exit
   -h, --help         print this help and exit
 ";
@@ -48,6 +49,8 @@ pub struct Launch {
     pub data_dir: Option<std::path::PathBuf>,
     /// `--graphics <mode>`: start with this graphics mode and keep it (see `graphics.rs`).
     pub graphics: Option<crate::graphics::Mode>,
+    /// `--lang <code>`: interface language (e.g. `pt-br`, `en`, `es`).
+    pub lang: Option<String>,
 }
 
 /// Parse the arguments after the program name. `env_control_port` is the value of
@@ -71,6 +74,7 @@ pub fn parse(env_control_port: Option<String>, args: impl IntoIterator<Item = Os
         recover: None,
         data_dir: None,
         graphics: None,
+        lang: None,
     };
     let (mut help, mut version) = (false, false);
     let mut args = args.into_iter();
@@ -93,6 +97,10 @@ pub fn parse(env_control_port: Option<String>, args: impl IntoIterator<Item = Os
             "--graphics" => {
                 let name = args.next().ok_or("--graphics needs a mode: default, dx12 or software")?;
                 l.graphics = Some(graphics_mode(&name.to_string_lossy())?);
+            }
+            "--lang" => {
+                let code = args.next().ok_or("--lang needs a language code (e.g. pt-br, en, es)")?;
+                l.lang = Some(code.to_string_lossy().into_owned());
             }
             // everything after `--` is a file, whatever it looks like
             "--" => l.files.extend(args.by_ref().map(|f| f.to_string_lossy().into_owned())),
@@ -235,7 +243,8 @@ mod tests {
                 startup_flag: false,
                 recover: None,
                 data_dir: None,
-                graphics: None
+                graphics: None,
+                lang: None,
             }
         );
         let l = launch(&["--control", "9876", "--empty", "--no-recover", "--data-dir", "/tmp/fc", "cut.fcproj", "a.mp4"]);
@@ -322,5 +331,13 @@ mod tests {
         assert!(parse_args(&["--graphics", "DEFAULT"]).is_err());
         assert!(parse_args(&["--graphics", &"x".repeat(1 << 16)]).is_err());
         assert!(USAGE.contains("--graphics"));
+    }
+
+    #[test]
+    fn lang_option_sets_language_code() {
+        assert_eq!(launch(&[]).lang, None);
+        assert_eq!(launch(&["--lang", "pt-br"]).lang, Some("pt-br".to_string()));
+        assert!(parse_args(&["--lang"]).is_err(), "missing language code");
+        assert!(USAGE.contains("--lang"));
     }
 }

@@ -193,7 +193,7 @@ fn native_options(agent: bool) -> eframe::NativeOptions {
 /// Creates the app once eframe has its window and graphics device; sets `created` when it runs,
 /// and confirms the graphics mode once two frames have painted.
 fn app_creator(launch: Launch, graphics: graphics::GraphicsStart, created: Arc<AtomicBool>) -> eframe::AppCreator<'static> {
-    let Launch { control_port, control_input_only, files, demo, startup_flag, recover, data_dir, graphics: _ } = launch;
+    let Launch { control_port, control_input_only, files, demo, startup_flag, recover, data_dir, graphics: _, lang } = launch;
     Box::new(move |cc| {
         filmcraft_ui_egui::install_ime_reset_callbacks(&cc.egui_ctx);
         created.store(true, Ordering::Relaxed);
@@ -212,6 +212,12 @@ fn app_creator(launch: Launch, graphics: graphics::GraphicsStart, created: Arc<A
             }),
         );
         let mut session = Session::default();
+        if let Some(ref language_code) = lang {
+            session.prefs.general.interface_language = language_code.clone();
+            if let Some(language) = filmcraft_ui_egui::i18n::Language::parse(language_code) {
+                filmcraft_ui_egui::i18n::set_current(language);
+            }
+        }
         if let Some(dir) = data_dir.clone().or_else(default_data_dir) {
             let mut cfg = AutosaveConfig::new(dir);
             cfg.local_offset = local_offset;
